@@ -1,0 +1,32 @@
+{
+  "name": "complaint-system",
+  "version": "1.0.0",
+  "description": "A simple Complaint System with Auth using Passport",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node app"
+  },
+  "keywords": [
+    "complaint",
+    "system"
+  ],
+  "author": "Shadab Ansari",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "*",
+    "body-parser": "^1.19.0",
+    "connect-flash": "*",
+    "express": "*",
+    "express-handlebars": "*",
+    "express-messages": "*",
+    "express-session": "*",
+    "express-validator": "*",
+    "fs-extra": "^8.1.0",
+    "mongoose": "*",
+    "multer": "^1.4.2",
+    "passport": "*",
+    "passport-http": "*",
+    "passport-local": "*"
+  }
+}
