@@ -11,6 +11,8 @@ let User = require('../models/user');
 let Complaint = require('../models/complaint');
 let ComplaintMapping = require('../models/complaint-mapping');
 let PictureMapping = require('../models/pic');
+const {sendMailToAuthority} = require('../emails/accounts')
+let Authority = require('../models/authority')
 
 router.get('/photo/:id', (req, res) => {
     var fileid = req.params.id;
@@ -19,7 +21,7 @@ router.get('/photo/:id', (req, res) => {
     
         if (err) throw err;  
        console.log(result.contentType)
-       res.contentType(result.contentType);
+       res.contentType('image/png');
        res.send(result.imageData)
       
        
@@ -48,6 +50,21 @@ router.get('/home/:uname',(req,res,next) => {
 });
 });
 
+// History Page
+router.get('/history/:uname',(req,res,next) => {
+    Complaint.getComplaintsByUsername(req.params.uname,(err,complaints) => {
+    if(err) {res.status(401).send({message:"",data:""})}
+    res.status(200).send({data:complaints})
+    })
+})
+// Complaint details dashboard
+router.get('/complaints/:compId',(req,res,next) => {
+    Complaint.getComplaintById(req.params.compId,(err,complaints) => {
+        if(err) {res.status(401).send({message:"",data:""})}
+        res.status(200).send({data:complaints})
+        })
+})
+
 router.post('/uploadphoto',upload.single('myImage'), (req, res) => {
     console.log('Request arrived')
     var img = fs.readFileSync(req.file.path);
@@ -65,6 +82,18 @@ router.post('/uploadphoto',upload.single('myImage'), (req, res) => {
     });
   console.log(newImage)
 });
+//
+router.post('/authority',(req,res) => {
+    console.info("New entry for Authority")
+    const newAuthorty = new Authority({
+        name: req.body.name,
+        email: req.body.email
+    })
+    Authority.saveAuthorityDetails(newAuthorty,(err,callback) => {
+        if(err) res.status(401).send("Error")
+        res.status(200).send('Success')
+    });
+})
 
 //Register a Complaint
  router.post('/registerComplaint', upload.single('myImage') ,(req, res, next) => {
@@ -74,40 +103,41 @@ router.post('/uploadphoto',upload.single('myImage'), (req, res) => {
     
     const dtype = req.file.mimetype
     const imageFile = new Buffer.from(encode_image, 'base64')
-      
     const username = req.body.username;
     const message = req.body.message;
-    const recpients = req.body.recpients;
+    const recpient = req.body.recpients;
     const location = req.body.location;
     const compCatagory = req.body.compCatagory;
     
-    const postBody = req.body;
-   
-    let errors = req.validationErrors();
-
-    if (errors) {
-        res.render('complaint', {
-            errors: errors
-        });
-    } else {
-        const newComplaint = new Complaint({
+    try {
+     let errors = req.validationErrors();
+       const newComplaint = new Complaint({
             username: username,
             message: message,
-            recpients: recpients,
+            recpient: recpient,
             feedback: '',
             geoLocation: location,
             compCatagory: compCatagory,
             captureImage: imageFile,
             contentType: dtype,
             resolutionStatus: 'ACTIVE'
-
         });
 
         Complaint.registerComplaint(newComplaint, (err, complaint) => {
-            if (err) throw err;
+            if(!err) {
+                const subject = 'New Complaint For '+ recpient + 'Authority'
+                const message = 'New Complaint with Attachment'
+                const content = encode_image 
+                const contType = dtype 
+                
+                Authority.getAuthorityMail(recpient, (err, rec) => {
+                    console.info("Authority: "+ rec.email)
+                    sendMailToAuthority(rec.email,subject,message,content,contType)
+            });
            res.json({status: "success", message: "User Complaint added successfully!!!", data: null})
+            }
         });
-    }
+    } catch(e) {res.status(400).send()}
 });
 
 
@@ -206,9 +236,12 @@ router.post('/login', passport.authenticate('local',
             Complaint.getComplaintsByUsername(req.body.username, (err, comp) => {
                 if (err) throw err;
                 if (!comp) {
-                    res.status(200).json({complaints : ''})
+                    res.status(200).json({"data" : 'No updated Contents'})
                 }
+                
                 res.status(200).send(comp)
+               
+    //,"recipients": comp.recipients,"feedback":comp.feedback,"lastUpdate":comp.lastUpdate
         });
         
         }
@@ -223,6 +256,15 @@ function ensureAuthenticated(req, res, next) {
         req.flash('error_msg', 'You are not Authorized to view this page');
         res.redirect('/login');
     }
+}
+
+function getAuthorityMailId(recptName) {
+
+ Authority.getAuthorityMail(recptName, (err, rec) => {
+        console.info("Authority: "+ rec.email)
+        authEmail = rec.email;
+});
+
 }
 
 module.exports = router;
