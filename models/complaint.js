@@ -25,7 +25,7 @@ const ComplaintSchema = mongoose.Schema({
         type: Date,
         default: Date.now
     },
-    recipients: {
+    recipient: {
         type: String
     },
     feedback: {
@@ -51,11 +51,16 @@ module.exports.registerComplaint = function (newComplaint, callback) {
     newComplaint.save(callback);
 }
 
-module.exports.getAllComplaints = function(callback){
+module.exports.getAllComplaints = function(username,callback){
+    const query = {username: username}
     Complaint.find(callback);
   }
 
 module.exports.getComplaintsByUsername = function(username, callback){
     const query = {username: username}
-    Complaint.find(query, callback);
+    Complaint.find(query,'username message lastUpdate',callback);
 }  
+
+module.exports.getComplaintById = function(id, callback){
+    Complaint.findById(id, callback);
+}
