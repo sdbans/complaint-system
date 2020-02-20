@@ -13,87 +13,47 @@ let ComplaintMapping = require('../models/complaint-mapping');
 let PictureMapping = require('../models/pic');
 const {sendMailToAuthority} = require('../emails/accounts')
 let Authority = require('../models/authority')
+let Lookup = require('../models/lookup')
+let Session = require('../models/session')
 
-router.get('/photo/:id', (req, res) => {
-    var fileid = req.params.id;
-    console.log('Id = '+ fileid)
-    PictureMapping.getPictureById(fileid, (err, result) => {
-    
-        if (err) throw err;  
-       console.log(result.contentType)
-       res.contentType('image/png');
-       res.send(result.imageData)
-      
-       
-      });
-    });
-
-// Home Page - Dashboard
-router.get('/', ensureAuthenticated, (req, res, next) => {
-    res.render('index');
-});
-
-// Login Form
-router.get('/login', (req, res, next) => {
-    res.render('login');
-});
-// Home Page
+// Home Page for User
 router.get('/home/:uname',(req,res,next) => {
     User.getUserByUsername(req.params.uname, (err, user) => {
-        if (err) throw err;
-        if (!user) {
-            return done(null, false, {
-                message: 'No user found'
-            });
-        }
-        res.status(200).json({name: user.name,email:user.email})
+        if (err) res.status(400).send('Error in fetching UserName');
+        if (!user) res.status(400).send('No User Found');
+        res.status(200).json({name: user.name,email:user.email,mobile:user.mobile})
 });
 });
 
 // History Page
 router.get('/history/:uname',(req,res,next) => {
+    Session.getSessionDetails(req.params.uname,(err,rec) => {
+        console.info('GET complaint history for User: '+req.params.uname)
+        const today = new Date
+        if (rec.timeOut.getTime() > today.getTime()) {
     Complaint.getComplaintsByUsername(req.params.uname,(err,complaints) => {
     if(err) {res.status(401).send({message:"",data:""})}
     res.status(200).send({data:complaints})
     })
-})
-// Complaint details dashboard
-router.get('/complaints/:compId',(req,res,next) => {
-    Complaint.getComplaintById(req.params.compId,(err,complaints) => {
-        if(err) {res.status(401).send({message:"",data:""})}
-        res.status(200).send({data:complaints})
-        })
-})
-
-router.post('/uploadphoto',upload.single('myImage'), (req, res) => {
-    console.log('Request arrived')
-    var img = fs.readFileSync(req.file.path);
-    var encode_image = img.toString('base64');
-    // Define a JSONobject for the image attributes for saving to database
-    
-    
-       var dtype = req.file.mimetype
-       var imageFile = new Buffer.from(encode_image, 'base64')
-      
-    const newImage = new PictureMapping({contentType: dtype,imageData: imageFile})
-    PictureMapping.saveImageFile(newImage,(err, img) => {
-        if (err) throw err;
-       res.json({status: "success", message: "User added successfully!!!", data: null})
-    });
-  console.log(newImage)
+}
+    else res.status(400).send('Session expired, Please login')
 });
-//
-router.post('/authority',(req,res) => {
-    console.info("New entry for Authority")
-    const newAuthorty = new Authority({
-        name: req.body.name,
-        email: req.body.email
-    })
-    Authority.saveAuthorityDetails(newAuthorty,(err,callback) => {
-        if(err) res.status(401).send("Error")
-        res.status(200).send('Success')
-    });
+});
+
+// Complaint details dashboard
+router.get('/complaints/:compId',(req, res, next) => {
+    console.info('GET complaint for user: ' + req.body.username)
+        Session.getSessionDetails(req.body.username,(err,rec) => {
+            const today = new Date
+            if (rec.timeOut.getTime() > today.getTime()) {
+               Complaint.getComplaintById(req.params.compId,(err,complaints) => {
+            if(err) {res.status(401).send({message:"",data:""})}
+            res.status(200).send({data:complaints})
+            })
+        }
+   else res.status(400).send('Session expired, Please login')
 })
+});
 
 //Register a Complaint
  router.post('/registerComplaint', upload.single('myImage') ,(req, res, next) => {
@@ -108,36 +68,47 @@ router.post('/authority',(req,res) => {
     const recpient = req.body.recpients;
     const location = req.body.location;
     const compCatagory = req.body.compCatagory;
-    
-    try {
-     let errors = req.validationErrors();
-       const newComplaint = new Complaint({
-            username: username,
-            message: message,
-            recpient: recpient,
-            feedback: '',
-            geoLocation: location,
-            compCatagory: compCatagory,
-            captureImage: imageFile,
-            contentType: dtype,
-            resolutionStatus: 'ACTIVE'
-        });
 
-        Complaint.registerComplaint(newComplaint, (err, complaint) => {
-            if(!err) {
-                const subject = 'New Complaint For '+ recpient + 'Authority'
-                const message = 'New Complaint with Attachment'
-                const content = encode_image 
-                const contType = dtype 
-                
-                Authority.getAuthorityMail(recpient, (err, rec) => {
-                    console.info("Authority: "+ rec.email)
-                    sendMailToAuthority(rec.email,subject,message,content,contType)
-            });
-           res.json({status: "success", message: "User Complaint added successfully!!!", data: null})
-            }
-        });
-    } catch(e) {res.status(400).send()}
+    Session.getSessionDetails(req.body.username,(err,rec) => {
+        const today = new Date
+        if (rec.timeOut.getTime() > today.getTime()) {
+            try {
+                // let errors = req.validationErrors();
+                   const newComplaint = new Complaint({
+                        username: username,
+                        message: message,
+                        recpient: recpient,
+                        feedback: '',
+                        geoLocation: location,
+                        compCatagory: compCatagory,
+                        captureImage: imageFile,
+                        contentType: dtype,
+                        resolutionStatus: 'ACTIVE'
+                    });
+            
+                    Complaint.registerComplaint(newComplaint, (err, complaint) => {
+                        if(!err) {
+                            const subject = 'Complaint For '+ complaint.compCatagory + 'Ref:' + complaint._id
+                            const message = complaint.message
+                            const content = encode_image 
+                            const contType = dtype 
+                            Lookup.getLookupDetails('CCS_INFO','APPLICATION_EMAIL',(err,senderRec) => {
+                                Lookup.getLookupDetails('CCS_CATEGORIES',recpient,(err,receiverRec) => {
+                                 console.info('Sender:'+ senderRec.LookupValue +'receiver:' + receiverRec.LookupValue + 'complaintId:' + complaint._id)
+                                sendMailToAuthority(senderRec.LookupValue,receiverRec.LookupValue,subject,message,content,contType)
+                                })
+                            })
+                            
+                       res.json({status: "success", message: "User Complaint added successfully!!!", data: null})
+                        }
+                    });
+                } catch(e) {res.status(400).send('Exception While registering complaint')}
+         
+
+        }
+        else res.status(400).send('Session expired, Please login')
+        })
+
 });
 
 
@@ -157,7 +128,6 @@ router.post('/register', (req, res, next) => {
     req.checkBody('password', 'Password field is required').notEmpty();
     req.checkBody('password2', 'Passwords do not match').equals(req.body.password);
     req.checkBody('mobile', 'Mobile is required').notEmpty();
-
     let errors = req.validationErrors();
 
     if (errors) {
@@ -174,13 +144,14 @@ router.post('/register', (req, res, next) => {
         });
 
         User.registerUser(newUser, (err, user) => {
-            if (err) throw err;
+            if (err) res.status(400).send('Registration Failed' + err);
            res.json({status: "success", message: "User added successfully!!!", data: null})
         });
     }
 });
 
 // Local Strategy
+
 passport.use(new LocalStrategy((username, password, done) => {
     User.getUserByUsername(username, (err, user) => {
         if (err) throw err;
@@ -221,14 +192,16 @@ passport.deserializeUser((id, done) => {
 });
 
 // Login Processing
-router.post('/login', passport.authenticate('local', 
-    { 
-        failureRedirect: '/login', 
-        failureFlash: true 
-    
-    }), (req, res, next) => {
-    
-        req.session.save((err) => {
+router.post('/login', passport.authenticate('local'), (req, res, next) => {
+    // save
+    const todayDt  = new Date
+    var sessionObj = new Session({
+        UserId: req.body.username,
+        LastConnect: new Date,
+        timeOut: todayDt.setDate(todayDt.getDate() + 7)
+       // source: {type: String}
+    })
+    Session.saveSessionDetails(sessionObj,(err,ssn) => {
         if (err) {
             res.status(400).json({error: err});
         }
@@ -247,24 +220,5 @@ router.post('/login', passport.authenticate('local',
         }
     });
 });
-
-// Access Control
-function ensureAuthenticated(req, res, next) {
-    if (req.isAuthenticated()) {
-        return next();
-    } else {
-        req.flash('error_msg', 'You are not Authorized to view this page');
-        res.redirect('/login');
-    }
-}
-
-function getAuthorityMailId(recptName) {
-
- Authority.getAuthorityMail(recptName, (err, rec) => {
-        console.info("Authority: "+ rec.email)
-        authEmail = rec.email;
-});
-
-}
 
 module.exports = router;
