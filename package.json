@@ -14,6 +14,7 @@
   "author": "Shadab Ansari",
   "license": "ISC",
   "dependencies": {
+    "@sendgrid/mail": "^6.5.1",
     "bcryptjs": "*",
     "body-parser": "^1.19.0",
     "connect-flash": "*",
