@@ -10,7 +10,7 @@ const ComplaintMappingSchema = mongoose.Schema({
         type: String,
         required: true
     },
-    engineerName: {
+    authorityName: {
         type: String,
         required: true
     },

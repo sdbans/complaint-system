@@ -23,10 +23,10 @@ const UserSchema = mongoose.Schema({
         required: true
     },
     mobile: {
-      type: Number
+        type: String
     },
-    lastLogin: {
-       type: String
+    role: {
+        type: String
     }
 });
 
@@ -58,4 +58,9 @@ module.exports.comparePassword = function(candidatePassword, hash, callback){
         if(err) throw err;
         callback(null, isMatch);
     });
+}
+
+module.exports.getEngineer = function(callback){
+    const query = {role: "jeng"}
+    User.find(query, callback);
 }

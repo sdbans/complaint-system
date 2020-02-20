@@ -7,9 +7,11 @@ dbconnect()
 
 // User Schema
 const AuthoritySchema = mongoose.Schema({
-    id:String,
-    name: { type: String },
-    email: { type: String }
+    AuthorityId: { type: String },
+    AuthorityDescription: { type: String },
+    Category: { type: String },
+    AuthorityContactType: { type: String },
+    AuthorityContact: { type: String }
 });
 
 const Authority = module.exports = mongoose.model('Authority', AuthoritySchema);
